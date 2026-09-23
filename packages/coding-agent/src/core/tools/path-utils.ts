@@ -46,7 +46,7 @@ export function expandPath(filePath: string): string {
  * Handles ~ expansion and absolute paths.
  */
 export function resolveToCwd(filePath: string, cwd: string): string {
-	return resolvePath(filePath, cwd, { normalizeUnicodeSpaces: true, stripAtPrefix: true });
+	return resolvePath(filePath, cwd, { normalizeUnicodeSpaces: true });
 }
 
 export function resolveReadPath(filePath: string, cwd: string): string {

@@ -230,6 +230,40 @@ describe("Step tool profile", () => {
 		}
 	});
 
+	it("reads and writes literal paths beginning with @", async () => {
+		const root = await mkdtemp(join(tmpdir(), "step-tool-profile-at-path-"));
+		try {
+			await mkdir(join(root, "@scope"));
+			await mkdir(join(root, "scope"));
+			await writeFile(join(root, "@scope", "sample.txt"), "expected");
+			await writeFile(join(root, "scope", "sample.txt"), "wrong");
+			const tools = createStepToolProfile(root);
+			const read = tools.find((tool) => tool.name === "read_file")!;
+			const write = tools.find((tool) => tool.name === "write_file")!;
+
+			const readResult = await read.execute(
+				"read-at-path",
+				{ path: "@scope/sample.txt" },
+				undefined,
+				undefined,
+				undefined as never,
+			);
+			expect(text(readResult)).toContain("1: expected");
+
+			await write.execute(
+				"write-at-path",
+				{ path: "@scope/new.txt", content: "written" },
+				undefined,
+				undefined,
+				undefined as never,
+			);
+			expect(await readFile(join(root, "@scope", "new.txt"), "utf8")).toBe("written");
+			expect(await readFile(join(root, "scope", "sample.txt"), "utf8")).toBe("wrong");
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	it("honors read_file line ranges and max_chars", async () => {
 		const root = await mkdtemp(join(tmpdir(), "step-tool-profile-"));
 		try {
