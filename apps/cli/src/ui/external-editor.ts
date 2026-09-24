@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parseCommandArgs } from "@step-harness/agent-core";
 import { APP_NAME, stripBom } from "@step-harness/coding-agent";
 
 export interface ExternalEditorOptions {
@@ -17,7 +18,8 @@ export async function editInExternalEditor(options: ExternalEditorOptions): Prom
 	const filePath = join(directory, "prompt.md");
 	try {
 		writeFileSync(filePath, options.content, "utf-8");
-		const [editor, ...editorArgs] = options.command.split(" ");
+		const [editor = "", ...editorArgs] = parseCommandArgs(options.command);
+		if (!editor) return { status: "failed" };
 		process.stdout.write(
 			`Launching external editor: ${options.command}\n${APP_NAME} will resume when the editor exits.\n`,
 		);
@@ -26,10 +28,11 @@ export async function editInExternalEditor(options: ExternalEditorOptions): Prom
 		// Node/libuv's console input read active after the parent pauses stdin, racing
 		// vim/nvim for the console input buffer until Ctrl+C cancels the pending read.
 		const exitCode = await new Promise<number | null>((resolve) => {
-			const child = spawn(editor, [...editorArgs, filePath], {
-				stdio: "inherit",
-				shell: process.platform === "win32",
-			});
+			// Windows needs a shell for .cmd/.bat editors; retain the command's quoting there.
+			const child =
+				process.platform === "win32"
+					? spawn(`${options.command} "${filePath}"`, { stdio: "inherit", shell: true })
+					: spawn(editor, [...editorArgs, filePath], { stdio: "inherit" });
 			child.on("error", () => resolve(null));
 			child.on("close", (code) => resolve(code));
 		});

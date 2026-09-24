@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,6 +34,24 @@ async function runExternalEditor(fixtureFlag?: "--fail" | "--empty"): Promise<{
 
 describe("editInExternalEditor", () => {
 	afterEach(() => vi.restoreAllMocks());
+
+	it("launches a quoted editor path and passes quoted arguments with spaces", async () => {
+		const testDirectory = mkdtempSync(join(tmpdir(), "step external editor test-"));
+		try {
+			const editorPath = process.platform === "win32" ? process.execPath : join(testDirectory, "editor executable");
+			if (process.platform !== "win32") symlinkSync(process.execPath, editorPath);
+			const capturePath = join(testDirectory, "capture output.json");
+			const result = await editInExternalEditor({
+				command: `"${editorPath}" "${editorFixturePath}" "${capturePath}"`,
+				content: "original",
+			});
+			const capture = JSON.parse(readFileSync(capturePath, "utf-8")) as EditorCapture;
+			expect(result).toEqual({ status: "complete", content: "edited" });
+			expect(capture.content).toBe("original");
+		} finally {
+			rmSync(testDirectory, { recursive: true, force: true });
+		}
+	});
 
 	it("edits a prompt inside a private temporary directory", async () => {
 		const stdout = vi.spyOn(process.stdout, "write");
